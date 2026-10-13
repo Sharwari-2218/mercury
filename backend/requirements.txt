@@ -1,0 +1,26 @@
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+langchain
+langchain-community
+langchain-chroma
+langchain-huggingface
+langchain-groq
+langchain-text-splitters
+chromadb
+sentence-transformers
+rank_bm25
+pypdf
+python-docx
+
+# app data, auth and queue (imported by the code but were missing here)
+sqlalchemy
+redis
+rq
+PyJWT
+pwdlib[argon2]
+email-validator
+# GitTalk clones and Sharebase pages
+gitpython
+beautifulsoup4
