@@ -13,7 +13,7 @@ Repository: https://github.com/Sharwari-2218/mercury
 |---|---|
 | **Ask (All)** | One question across every document and wiki page you're allowed to see |
 | **Docsense** | Upload PDF, DOCX, TXT or MD files and ask questions about one document or all of them |
-| **GitTalk** | Index a public GitHub repo and ask about its code; answers name the exact file paths |
+| **GitTalk** | Ask about the code of an indexed GitHub repo (index it on Contribute first); answers name the exact file paths |
 | **Sharebase** | Add a wiki or web page by URL and ask questions across pages; re-adding a page replaces the old version |
 | **Databloom** | Browse a document chunk by chunk and get a short markdown summary of any chunk |
 | **Contribute** | Submit a file, repo or wiki URL; a background worker ingests it while you track the job's status |
@@ -83,6 +83,7 @@ mercury/
 │   │                          # contribute, feed, auth
 │   ├── tests/                 # pytest suite
 │   ├── create_admin.py        # first admin + starter department policies
+│   ├── dev.py                 # starts Chroma, the worker and the API together
 │   └── requirements.txt
 └── frontend/
     └── src/
@@ -94,9 +95,21 @@ mercury/
 
 ## Getting started
 
-**Prerequisites:** Python 3.12, Node.js 20+, Git, Redis, and a free [Groq API key](https://console.groq.com).
+**Prerequisites:** Python 3.12, Node.js 20+, Git, [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for Redis), and a free [Groq API key](https://console.groq.com).
 
-### 1. Backend
+Mercury runs as five pieces. You don't start them one by one:
+
+| Piece | What it does | Started by |
+|---|---|---|
+| Redis | Job queue between the API and the worker | Docker |
+| Chroma | Vector database, shared by the API and the worker | `python dev.py` |
+| RQ worker | Indexes files, repos and wikis in the background | `python dev.py` |
+| API (FastAPI) | Backend, on port 8000 | `python dev.py` |
+| Frontend (React) | The website, on port 5173 | `npm run dev` |
+
+### One-time setup
+
+**1. Backend packages**
 
 ```bash
 cd backend
@@ -106,45 +119,98 @@ source venv/bin/activate              # Windows: venv\Scripts\activate
 # CPU-only PyTorch (skip this line if you have an NVIDIA GPU)
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
+```
 
+**2. Backend settings**
+
+```bash
 cp .env.example .env                  # Windows: copy .env.example .env
 ```
 
-Fill in `.env`. Two values are required:
+Open `.env` and fill in:
 
 ```env
 GROQ_API_KEY=your_groq_key
 JWT_SECRET=                           # python -c "import secrets; print(secrets.token_hex(32))"
 COOKIE_SECURE=false                   # for local http
+CHROMA_HOST=localhost
+CHROMA_PORT=8001                      # not 8000: the API uses that
 ```
 
-Create the first admin (this also adds the starter departments `engineering`, `hr` and `sales`), then start the API:
+**3. First admin account** (this also adds the starter departments `engineering`, `hr` and `sales`):
 
 ```bash
 python create_admin.py
-uvicorn app.main:app --reload         # http://localhost:8000, API docs at /docs
 ```
 
-### 2. Worker
-
-In a second terminal, with Redis running and the virtual environment active:
+**4. Redis container.** Open Docker Desktop, wait until it shows *Engine running*, then:
 
 ```bash
-cd backend
-rq worker ingest                      # Windows: rq worker ingest --worker-class rq.worker.SimpleWorker
+docker run -d --name redis -p 6379:6379 --restart unless-stopped redis
+docker exec redis redis-cli ping      # should print PONG
 ```
 
-### 3. Frontend
-
-In a third terminal:
+**5. Frontend packages**
 
 ```bash
-cd frontend
+cd ../frontend
 npm install
-npm run dev                           # http://localhost:5173
 ```
 
-Vite forwards `/api` requests to the backend, so the login cookie works without any CORS setup. Sign in with the admin account you created.
+### Every time you run Mercury
+
+1. **Open Docker Desktop.** Redis starts by itself.
+2. **Terminal 1, backend:**
+   ```bash
+   cd backend
+   venv\Scripts\activate              # macOS / Linux: source venv/bin/activate
+   python dev.py
+   ```
+   Wait until you see `All running` and `[api] ... Application startup complete`.
+   API docs are at http://localhost:8000/docs.
+3. **Terminal 2, frontend:**
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+4. **Open http://localhost:5173** and sign in with the admin account.
+
+To stop, press **Ctrl+C** in both terminals. Ctrl+C in Terminal 1 stops Chroma, the worker and the API together.
+
+Vite forwards `/api` requests to the backend, so the login cookie works without any CORS setup.
+
+<details>
+<summary>Starting the backend pieces by hand instead of <code>dev.py</code></summary>
+
+Use three terminals, in this order, from `backend/` with the venv active:
+
+```bash
+chroma run --path data/chroma_db --port 8001
+rq worker ingest                      # Windows: rq worker ingest --worker-class rq.worker.SimpleWorker
+uvicorn app.main:app --reload
+```
+
+`python dev.py --no-api` starts only Chroma and the worker.
+</details>
+
+### Using GitTalk
+
+1. Go to **Contribute → GitHub repo**, paste a public repo URL and submit.
+2. Wait until the job shows **done**. In Terminal 1, the `[worker]` lines end with `Job OK`.
+3. Go to **Ask → GitTalk**, pick the repo from the dropdown and ask a question.
+
+Start with a small repo: embeddings run on the CPU, so large repos take a while.
+
+### Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `Redis isn't running on localhost:6379` | Open Docker Desktop, then run `docker start redis` |
+| `docker: failed to connect to the docker API` | Docker Desktop isn't open; start it and wait for *Engine running* |
+| `Port 8001 is already in use` | Chroma is already running from an earlier start; close that terminal, or end the `chroma` process in Task Manager |
+| GitTalk says *No repositories indexed yet* | Index the repo on Contribute first |
+| Answers ignore content you just added | Check that `.env` has `CHROMA_HOST` and `CHROMA_PORT`, then restart `python dev.py` |
+| A Contribute job shows *failed* | The error is on the job, and the full traceback is in the `[worker]` lines in Terminal 1 |
 
 ## Configuration
 
@@ -158,6 +224,7 @@ Vite forwards `/api` requests to the backend, so the login cookie works without 
 | `DATA_DIR` | `backend/data` | Chroma vectors, chunk files, uploads |
 | `DATABASE_URL` | `sqlite:///./mercury.db` | App database |
 | `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | Job queue |
+| `CHROMA_HOST` / `CHROMA_PORT` | (unset) / `8001` | Chroma server shared by the API and the worker. If unset, Chroma uses local files, which is only safe when no worker runs |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | (off) | Email alerts; if unset, emails are only logged |
 | `APP_URL` | `http://localhost:5173` | Links in emails |
 
