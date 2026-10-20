@@ -73,20 +73,29 @@ export const api = {
     form.append('uploaded_by', uploadedBy);
     return request('/contribute', { method: 'POST', form });
   },
-  // GET /contribute/status/{id} -> { status: queued|started|finished|failed, step?, error? }
+  // GET /contribute/status/{id} -> { status: queued|processing|done|failed, error? }
   jobStatus: (id) => request(`/contribute/status/${encodeURIComponent(id)}`),
 
+  // ---------- Documents (Docsense) ----------
+  // GET /docsense/files -> [{ doc_id, filename, department, uploaded_by }], newest first
+  documents: async () => {
+    const data = await request('/docsense/files');
+    return Array.isArray(data) ? data : [];
+  },
+  // POST /docsense/upload (multipart) -> { doc_id, filename, department, chunks }
+  uploadDocument: (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request('/docsense/upload', { method: 'POST', form });
+  },
+
   // ---------- Databloom ----------
-  databloomFiles: async () => {
-    const data = await request('/databloom/files'); // -> { files: ["a.pdf", ...] }
-    return (data.files ?? []).map((name) => ({ name }));
-  },
-  // -> { source, count, chunks: [{ chunk_id, index, preview, length, summarized }] }
-  chunks: (fileName) => request(`/databloom/chunks?source=${encodeURIComponent(fileName)}`),
-  summarize: async (fileName, chunkId) => {
-    const res = await request('/databloom', { method: 'POST', body: { source: fileName, chunk_id: chunkId } });
-    return res.summary ?? '';
-  },
+  // GET /databloom/{doc_id}/chunks
+  //   -> { doc_id, filename, count, chunks: [{ chunk_id, index, page, preview, length, summarized }] }
+  chunks: (docId) => request(`/databloom/${encodeURIComponent(docId)}/chunks`),
+  // POST /databloom { doc_id, chunk_id } -> { chunk_id, summary, cached }
+  summarize: (docId, chunkId) =>
+    request('/databloom', { method: 'POST', body: { doc_id: docId, chunk_id: chunkId } }),
 
   // ---------- Feed ----------
   feed: (sort) => request(sort === 'trending' ? '/feed/trending' : '/feed'),

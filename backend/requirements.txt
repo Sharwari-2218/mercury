@@ -1,26 +1,44 @@
-fastapi
-uvicorn
-python-multipart
-python-dotenv
-langchain
-langchain-community
-langchain-chroma
-langchain-huggingface
-langchain-groq
-langchain-text-splitters
-chromadb
-sentence-transformers
-rank_bm25
-pypdf
-python-docx
+# Mercury AI backend. Versions are pinned on purpose: LangChain moves its
+# imports between releases, so upgrade one package at a time and re-run pytest.
+#
+#   pip install -r requirements.txt
+#
+# sentence-transformers pulls in PyTorch. On a machine without an NVIDIA GPU
+# (and in Docker) install the much smaller CPU build first:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-# app data, auth and queue (imported by the code but were missing here)
-sqlalchemy
-redis
-rq
-PyJWT
-pwdlib[argon2]
-email-validator
+# API
+fastapi==0.142.2
+uvicorn[standard]==0.49.0
+python-multipart==0.0.32
+python-dotenv==1.2.2
+
+# RAG: loaders, splitting, embeddings, vector store, keyword search, LLM
+langchain==1.3.11
+langchain-core==1.4.8
+langchain-community==0.4.2
+langchain-chroma==1.1.0
+langchain-huggingface==1.2.2
+langchain-groq==1.1.3
+langchain-text-splitters==1.1.2
+chromadb==1.5.9
+sentence-transformers==5.6.0
+rank-bm25==0.2.2
+pypdf==6.14.2
+python-docx==1.2.0
+
 # GitTalk clones and Sharebase pages
-gitpython
-beautifulsoup4
+GitPython==3.2.0
+beautifulsoup4==4.13.5
+
+# App data, auth and queue
+SQLAlchemy==2.0.51
+redis==8.1.0
+rq==2.12.0
+PyJWT==2.10.1
+pwdlib[argon2]==0.3.1
+email-validator==2.3.0
+
+# Tests
+pytest==9.1.1
+httpx==0.28.1

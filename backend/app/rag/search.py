@@ -1,4 +1,5 @@
 """3-layer search: BM25 keyword + Chroma vector, fused with RRF, driven by LLM query rewrites."""
+import logging
 import re
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from .ingest import chunk_file, load_chunks
 
 TOP_K = 10      # per layer, per query
 FINAL_K = 5     # after fusion
+
+log = logging.getLogger("mercury.search")
 
 
 # ---------- Layer 1: keyword (BM25) ----------
@@ -105,7 +108,10 @@ def vector_search(query: str, collection_name: str, where: dict | None = None, k
     try:
         return vs.similarity_search(query, k=k, filter=_chroma_filter(where))
     except Exception:
-        return []  # empty / missing collection
+        # Still fall back to BM25-only results, but never silently: a broken
+        # vector layer here once made GitTalk look like indexing had failed.
+        log.exception("Vector search failed for collection %r", collection_name)
+        return []
 
 
 # ---------- Fusion: Reciprocal Rank Fusion ----------

@@ -9,7 +9,7 @@
 import Ask from './pages/Ask'
 import Contribute from './pages/Contribute'
 import Feed from './pages/Feed'
-import Databloom from './components/Databloom'
+import Databloom from './pages/Databloom'
 
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './AuthContext'

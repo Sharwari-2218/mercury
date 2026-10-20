@@ -1,7 +1,7 @@
 """Docsense + Databloom: upload, list, ask, chunks, summarize, and who may see what."""
 import io
 
-from app.rag.search import combine_filters, matches
+from app.rag.search import matches
 
 LEAVE = ("Leave policy. Every employee gets 12 sick days per year. "
          "Sick days do not carry over to the next year. ") * 30
@@ -20,6 +20,13 @@ def upload(client, who, name, text, **extra):
 
 # ---------- The filter checker used by BM25 ----------
 
+def test_matches_understands_simple_filters():
+    meta = {"type": "doc", "department": "hr"}
+    assert matches(meta, {"department": ["hr", "all"]})
+    assert not matches(meta, {"department": ["engineering", "all"]})
+    assert matches(meta, {"type": "doc", "department": ["hr"]})
+
+
 def test_matches_understands_chroma_filters():
     meta = {"type": "doc", "department": "hr", "doc_id": "a"}
     assert matches(meta, None)
@@ -31,12 +38,6 @@ def test_matches_understands_chroma_filters():
     assert matches(meta, {"$and": [{"type": "doc"}, {"department": {"$in": ["hr"]}}]})
     assert not matches(meta, {"$and": [{"type": "doc"}, {"doc_id": "b"}]})
     assert matches(meta, {"$or": [{"doc_id": "b"}, {"doc_id": "a"}]})
-
-
-def test_combine_filters_skips_empty():
-    assert combine_filters(None, None) is None
-    assert combine_filters({"a": 1}, None) == {"a": 1}
-    assert combine_filters({"a": 1}, {"b": 2}) == {"$and": [{"a": 1}, {"b": 2}]}
 
 
 # ---------- Login and permissions ----------
@@ -65,7 +66,8 @@ def test_upload_takes_department_from_login_not_form(app_client):
     assert body["department"] == "engineering"
     assert body["chunks"] > 1
     files = app_client.get("/docsense/files", headers=app_client.as_user["eng"]).json()
-    assert files[0]["uploaded_by"] == "Eli Eng"
+    assert files[0]["uploaded_by"] == "eli@co.com"
+    assert files[0]["department"] == "engineering"
 
 
 def test_upload_rejects_bad_files(app_client):

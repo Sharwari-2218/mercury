@@ -1,0 +1,72 @@
+# Mercury AI: everything with one command.
+#
+#   1. cp backend/.env.example backend/.env   (then fill in GROQ_API_KEY and JWT_SECRET)
+#   2. docker compose up --build
+#   3. docker compose exec backend python create_admin.py --email you@company.com --name "You"
+#   4. open http://localhost:8080
+#
+# Data (SQLite database, Chroma vectors, chunk files, uploads) lives in the
+# "mercury-data" volume, so it survives restarts and rebuilds.
+
+x-backend-env: &backend-env
+  DATA_DIR: /data
+  DATABASE_URL: sqlite:////data/mercury.db
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment: *backend-env
+    volumes:
+      - mercury-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+
+  worker:
+    # Same image as the backend; runs ingestion jobs queued by POST /contribute.
+    build: ./backend
+    restart: unless-stopped
+    command: ["rq", "worker", "ingest", "--url", "redis://redis:6379/0"]
+    env_file: ./backend/.env
+    environment: *backend-env
+    volumes:
+      - mercury-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy   # the backend creates the database tables
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  mercury-data:
+  redis-data:

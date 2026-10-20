@@ -82,6 +82,8 @@ def fakes(monkeypatch):
     monkeypatch.setattr(search_mod, "get_vectorstore", lambda name: store)
     monkeypatch.setattr(search_mod, "get_llm", lambda t=0.0: llm)
     monkeypatch.setattr(chat, "get_llm", lambda t=0.0: llm)
+    databloom = importlib.import_module("app.routes.databloom")
+    monkeypatch.setattr(databloom, "get_llm", lambda t=0.0: llm)
     return store, llm
 
 
@@ -95,13 +97,13 @@ def app_client(fakes):
     from app.main import app
     from app.models import DepartmentPolicy, User
     from app.rag.config import CHUNKS_DIR
-    from app.routes import docsense
+    from app.routes import databloom
 
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     shutil.rmtree(CHUNKS_DIR, ignore_errors=True)
     CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
-    docsense._summary_cache.clear()
+    databloom._summary_cache.clear()
 
     db = SessionLocal()
     db.add_all([

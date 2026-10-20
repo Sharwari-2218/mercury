@@ -1,4 +1,5 @@
 """Answer generation: retrieve -> grounded answer with citations -> follow-up suggestions."""
+import logging
 import re
 
 from langchain_core.documents import Document
@@ -6,6 +7,15 @@ from langchain_core.documents import Document
 from .config import get_llm
 from .ingest import load_chunks
 from .search import _lines, hybrid_search, matches
+
+log = logging.getLogger("mercury.chat")
+
+
+class LLMUnavailable(Exception):
+    """The language model couldn't answer (rate limit, outage, bad key).
+    main.py turns this into a 502 with a readable message."""
+
+    message = "The AI service is busy or unavailable right now. Please try again in a minute."
 
 # ---------- Prompts ----------
 
@@ -200,7 +210,11 @@ def answer_question(
         ("system", build_prompt(mode, detail)),
         ("human", f"Context:\n{format_context(docs)}\n\nQuestion: {question}"),
     ]
-    answer = get_llm(0.0).invoke(messages).content
+    try:
+        answer = get_llm(0.0).invoke(messages).content
+    except Exception as exc:  # rate limit after retries, network error, bad API key...
+        log.exception("LLM call failed while answering")
+        raise LLMUnavailable() from exc
 
     return {
         "answer": answer,

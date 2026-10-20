@@ -43,6 +43,25 @@ def get_embeddings():
     )
 
 
+@lru_cache
+def get_chroma_client():
+    """One Chroma client per process.
+
+    The API and the RQ worker are separate processes. A local PersistentClient
+    is NOT safe to share between processes: the API keeps a stale in-memory
+    vector index and never sees chunks the worker adds. So when CHROMA_HOST is
+    set (`python dev.py` starts it, on port 8001), both processes
+    talk to the same Chroma server instead. Without it we fall back to local
+    files, which is only correct if everything runs in ONE process.
+    """
+    import chromadb
+
+    host = os.getenv("CHROMA_HOST")
+    if host:
+        return chromadb.HttpClient(host=host, port=int(os.getenv("CHROMA_PORT", "8001")))
+    return chromadb.PersistentClient(path=str(CHROMA_DIR))
+
+
 @lru_cache(maxsize=None)
 def get_vectorstore(collection_name: str):
     from langchain_chroma import Chroma
@@ -50,7 +69,7 @@ def get_vectorstore(collection_name: str):
     return Chroma(
         collection_name=safe_collection_name(collection_name),
         embedding_function=get_embeddings(),
-        persist_directory=str(CHROMA_DIR),
+        client=get_chroma_client(),
     )
 
 

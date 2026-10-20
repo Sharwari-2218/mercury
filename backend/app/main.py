@@ -5,10 +5,12 @@ from dotenv import load_dotenv
 
 load_dotenv()  # must run before importing app.auth (it reads JWT_SECRET)
 
-from fastapi import FastAPI  # noqa: E402
+from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
 
 from .database import Base, engine  # noqa: E402
+from .rag.chat import LLMUnavailable  # noqa: E402
 from .routes import (  # noqa: E402
     ask, auth_routes, contribute, databloom, docsense, feed, gittalk, sharebase,
 )
@@ -41,6 +43,12 @@ app.include_router(sharebase.router)    # /sharebase/add, /sharebase/ask, /share
 app.include_router(databloom.router)    # /databloom/files, /databloom/chunks, POST /databloom
 app.include_router(contribute.router)   # /contribute, /contribute/status/{id}, /contribute/jobs
 app.include_router(feed.router)         # /feed, /feed/trending, /posts, /posts/{id}/vote, /subscriptions
+
+
+@app.exception_handler(LLMUnavailable)
+def llm_unavailable(_: Request, exc: LLMUnavailable):
+    # Without this, a Groq rate limit or outage reaches the user as a bare 500.
+    return JSONResponse(status_code=502, content={"detail": exc.message})
 
 
 @app.get("/health")

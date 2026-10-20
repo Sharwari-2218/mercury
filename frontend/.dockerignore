@@ -1,0 +1,5 @@
+# Keep the host's node_modules out of the image: on Windows/macOS they contain
+# native binaries for the wrong OS, and `npm install` inside the image replaces them anyway.
+node_modules/
+dist/
+.env

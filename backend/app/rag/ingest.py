@@ -89,8 +89,15 @@ def _append_chunks(collection_name: str, records: list[dict]) -> None:
 # ---------- Main entry point ----------
 
 def reset_collection(collection_name: str) -> None:
-    """Wipe a collection from both stores (used before re-indexing a repo)."""
-    get_vectorstore(collection_name).reset_collection()  # delete + recreate empty
+    """Wipe a collection from both stores (used before re-indexing a repo).
+
+    Deletes the documents but keeps the collection itself. Dropping and
+    recreating it (vs.reset_collection()) gives it a new ID, and the API
+    process's cached handle would then fail with "Collection does not exist".
+    """
+    vs = get_vectorstore(collection_name)
+    while ids := vs.get(limit=5000, include=[])["ids"]:
+        vs.delete(ids=ids)
     with _chunk_file_lock:
         chunk_file(collection_name).unlink(missing_ok=True)
 

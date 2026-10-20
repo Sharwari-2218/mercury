@@ -110,7 +110,8 @@ async def contribute(
         if not url or not url.strip():
             raise HTTPException(400, "Please enter a GitHub URL.")
         url = url.strip()
-        if not re.match(r"^https://github\.com/[\w.-]+/[\w.-]+/?(\.git)?$", url):
+        # Same shapes GitTalk accepts, incl. links like .../tree/main
+        if not re.match(r"^https://(www\.)?github\.com/[\w.-]+/[\w.-]+?(\.git)?(/.*)?$", url):
             raise HTTPException(400, "Enter a valid GitHub repo URL, e.g. https://github.com/user/repo")
         source = url
 
